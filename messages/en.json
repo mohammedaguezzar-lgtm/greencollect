@@ -1,0 +1,46 @@
+{
+  "common": {
+    "appName": "GreenCollect",
+    "save": "Save",
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "error": "Something went wrong"
+  },
+  "auth": {
+    "login": "Sign in",
+    "register": "Create account",
+    "email": "Email",
+    "password": "Password",
+    "logout": "Sign out"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "pickups": "Pickups",
+    "addresses": "Addresses",
+    "book": "Book a pickup"
+  },
+  "landing": {
+    "hero": "Recycle smarter in Casablanca",
+    "cta": "Get started"
+  },
+  "pickup": {
+    "status": {
+      "REQUESTED": "Requested",
+      "CONFIRMED": "Confirmed",
+      "ASSIGNED": "Assigned",
+      "EN_ROUTE": "En route",
+      "ARRIVED": "Arrived",
+      "COMPLETED": "Completed",
+      "CANCELLED": "Cancelled",
+      "NO_SHOW": "No show"
+    }
+  },
+  "waste": {
+    "plastic": "Plastic",
+    "paper": "Paper",
+    "metal": "Metal",
+    "glass": "Glass",
+    "electronic": "Electronic",
+    "mixed": "Mixed"
+  }
+}

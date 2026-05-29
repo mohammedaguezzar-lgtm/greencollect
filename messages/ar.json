@@ -1,0 +1,46 @@
+{
+  "common": {
+    "appName": "GreenCollect",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "loading": "جاري التحميل…",
+    "error": "حدث خطأ"
+  },
+  "auth": {
+    "login": "تسجيل الدخول",
+    "register": "إنشاء حساب",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "logout": "خروج"
+  },
+  "nav": {
+    "dashboard": "لوحة التحكم",
+    "pickups": "عمليات الجمع",
+    "addresses": "العناوين",
+    "book": "حجز جمع"
+  },
+  "landing": {
+    "hero": "أعد التدوير بذكاء في الدار البيضاء",
+    "cta": "ابدأ الآن"
+  },
+  "pickup": {
+    "status": {
+      "REQUESTED": "مطلوبة",
+      "CONFIRMED": "مؤكدة",
+      "ASSIGNED": "معينة",
+      "EN_ROUTE": "في الطريق",
+      "ARRIVED": "وصلت",
+      "COMPLETED": "مكتملة",
+      "CANCELLED": "ملغاة",
+      "NO_SHOW": "لم يحضر"
+    }
+  },
+  "waste": {
+    "plastic": "بلاستيك",
+    "paper": "ورق",
+    "metal": "معدن",
+    "glass": "زجاج",
+    "electronic": "إلكترونيات",
+    "mixed": "مختلط"
+  }
+}

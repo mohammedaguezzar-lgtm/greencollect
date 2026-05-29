@@ -1,0 +1,293 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  COLLECTOR
+  DISPATCHER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum PickupStatus {
+  REQUESTED
+  CONFIRMED
+  ASSIGNED
+  EN_ROUTE
+  ARRIVED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  WAIVED
+  REFUNDED
+  FAILED
+}
+
+enum PaymentProvider {
+  CASH
+  CMI
+  STRIPE
+  MANUAL
+}
+
+enum WasteTypeCode {
+  PLASTIC
+  PAPER
+  METAL
+  GLASS
+  ELECTRONIC
+  MIXED
+}
+
+enum RouteStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  PUSH
+}
+
+enum Locale {
+  ar
+  fr
+  en
+}
+
+model User {
+  id                   String                @id @default(uuid())
+  email                String                @unique
+  emailVerified        DateTime?
+  phone                String?               @unique
+  name                 String?
+  passwordHash         String?
+  image                String?
+  role                 UserRole              @default(USER)
+  status               UserStatus            @default(PENDING_VERIFICATION)
+  locale               Locale                @default(fr)
+  organizationId       String?
+  organization         Organization?         @relation(fields: [organizationId], references: [id])
+  addresses            Address[]
+  pickupsAsCustomer    Pickup[]              @relation("CustomerPickups")
+  pickupsAsCollector   Pickup[]              @relation("CollectorPickups")
+  routes               Route[]
+  accounts             Account[]
+  sessions             Session[]
+  notifications        Notification[]
+  auditLogs            AuditLog[]            @relation("ActorAuditLogs")
+  statusHistoryAuthored PickupStatusHistory[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  @@index([role])
+  @@index([organizationId])
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Organization {
+  id           String   @id @default(uuid())
+  name         String
+  taxId        String?
+  billingEmail String?
+  users        User[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Address {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label      String?
+  line1      String
+  line2      String?
+  district   String?
+  city       String
+  postalCode String?
+  latitude   Decimal  @db.Decimal(9, 6)
+  longitude  Decimal  @db.Decimal(9, 6)
+  isDefault  Boolean  @default(false)
+  pickups    Pickup[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@index([city])
+}
+
+model WasteType {
+  id             String        @id @default(uuid())
+  code           WasteTypeCode @unique
+  nameKey        String
+  descriptionKey String?
+  flatFeeMad     Decimal       @db.Decimal(10, 2)
+  pricePerKgMad  Decimal?      @db.Decimal(10, 2)
+  active         Boolean       @default(true)
+  pickups        Pickup[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Pickup {
+  id                  String        @id @default(uuid())
+  customerId          String
+  customer            User          @relation("CustomerPickups", fields: [customerId], references: [id])
+  addressId           String
+  address             Address       @relation(fields: [addressId], references: [id])
+  wasteTypeId         String
+  wasteType           WasteType     @relation(fields: [wasteTypeId], references: [id])
+  status              PickupStatus  @default(REQUESTED)
+  scheduledDate       DateTime      @db.Date
+  timeWindowStart     String
+  timeWindowEnd       String
+  estimatedWeightKg   Decimal?      @db.Decimal(8, 2)
+  actualWeightKg      Decimal?      @db.Decimal(8, 2)
+  notes               String?       @db.Text
+  proofPhotoUrl       String?
+  feeAmountMad        Decimal       @db.Decimal(10, 2)
+  paymentStatus       PaymentStatus @default(PENDING)
+  assignedCollectorId String?
+  assignedCollector   User?         @relation("CollectorPickups", fields: [assignedCollectorId], references: [id])
+  routeId             String?
+  route               Route?        @relation(fields: [routeId], references: [id])
+  cancelledAt         DateTime?
+  cancellationReason  String?
+  statusHistory       PickupStatusHistory[]
+  payments            Payment[]
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@index([customerId])
+  @@index([assignedCollectorId])
+  @@index([status])
+  @@index([scheduledDate])
+  @@index([routeId])
+}
+
+model PickupStatusHistory {
+  id         String        @id @default(uuid())
+  pickupId   String
+  pickup     Pickup        @relation(fields: [pickupId], references: [id], onDelete: Cascade)
+  fromStatus PickupStatus?
+  toStatus   PickupStatus
+  actorId    String?
+  actor      User?         @relation(fields: [actorId], references: [id])
+  note       String?
+  createdAt  DateTime      @default(now())
+
+  @@index([pickupId])
+}
+
+model Route {
+  id          String      @id @default(uuid())
+  collectorId String
+  collector   User        @relation(fields: [collectorId], references: [id])
+  date        DateTime    @db.Date
+  status      RouteStatus @default(PLANNED)
+  pickupOrder Json
+  pickups     Pickup[]
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([collectorId, date])
+  @@index([date])
+}
+
+model Payment {
+  id         String          @id @default(uuid())
+  pickupId   String
+  pickup     Pickup          @relation(fields: [pickupId], references: [id])
+  amountMad  Decimal         @db.Decimal(10, 2)
+  provider   PaymentProvider
+  status     PaymentStatus   @default(PENDING)
+  externalId String?
+  metadata   Json?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([pickupId])
+}
+
+model Notification {
+  id        String              @id @default(uuid())
+  userId    String
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   NotificationChannel @default(EMAIL)
+  type      String
+  title     String
+  body      String              @db.Text
+  readAt    DateTime?
+  sentAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  actor      User?    @relation("ActorAuditLogs", fields: [actorId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+}
