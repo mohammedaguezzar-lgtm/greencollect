@@ -1,8 +1,8 @@
 import createMiddleware from 'next-intl/middleware';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { auth } from '@/lib/auth';
 import { routing } from '@/i18n/routing';
+import { getMiddlewareSession } from '@/lib/middleware-auth';
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -33,7 +33,7 @@ export default async function middleware(request: NextRequest) {
   );
 
   if (isProtected) {
-    const session = await auth();
+    const session = await getMiddlewareSession(request);
     if (!session?.user?.id) {
       return NextResponse.redirect(new URL(`/${locale}/login`, request.url));
     }
@@ -53,7 +53,7 @@ export default async function middleware(request: NextRequest) {
   }
 
   if (pathWithoutLocale === '/login' || pathWithoutLocale === '/register') {
-    const session = await auth();
+    const session = await getMiddlewareSession(request);
     if (session?.user?.role) {
       const home = roleHome[session.user.role] ?? '/dashboard';
       return NextResponse.redirect(new URL(`/${locale}${home}`, request.url));
