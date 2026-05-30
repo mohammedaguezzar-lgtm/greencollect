@@ -1,5 +1,5 @@
+import { base64url, calculateJwkThumbprint, jwtDecrypt } from 'jose';
 import { hkdf } from '@panva/hkdf';
-import { jwtDecrypt } from 'jose';
 import type { NextRequest } from 'next/server';
 
 /** Lightweight session shape extracted from the JWT — no NextAuth dependency. */
@@ -12,6 +12,9 @@ export interface MiddlewareSession {
 }
 
 const AUTH_SECRET = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? '';
+
+const ALG = 'dir' as const;
+const ENC = 'A256CBC-HS512' as const;
 
 /**
  * Derive the encryption key the same way `@auth/core` does internally.
@@ -27,7 +30,10 @@ const AUTH_SECRET = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? ''
  *
  * @see node_modules/@auth/core/src/jwt.ts
  */
-async function getDerivedEncryptionKey(enc: string, salt: string): Promise<Uint8Array> {
+async function getDerivedEncryptionKey(
+  enc: string,
+  salt: string,
+): Promise<Uint8Array> {
   let length: number;
   switch (enc) {
     case 'A256CBC-HS512':
@@ -47,6 +53,37 @@ async function getDerivedEncryptionKey(enc: string, salt: string): Promise<Uint8
     length,
   );
 }
+
+/**
+ * Key resolver that matches `@auth/core`'s `jwtDecrypt` key resolver.
+ *
+ * The JWE header contains a `kid` (key thumbprint). We derive the encryption
+ * key via HKDF, compute its JWK thumbprint, and return the key only if the
+ * thumbprint matches (or if `kid` is undefined).
+ *
+ * @see node_modules/@auth/core/src/jwt.ts decode()
+ */
+async function keyResolver(
+  { kid, enc }: { kid?: string; enc?: string },
+): Promise<Uint8Array> {
+  const encryptionSecret = await getDerivedEncryptionKey(
+    enc ?? ENC,
+    cookieNameForResolver,
+  );
+  if (kid === undefined) return encryptionSecret;
+
+  const thumbprint = await calculateJwkThumbprint(
+    { kty: 'oct', k: base64url.encode(encryptionSecret) },
+    `sha${encryptionSecret.byteLength << 3}` as 'sha256' | 'sha384' | 'sha512',
+  );
+  if (kid === thumbprint) return encryptionSecret;
+
+  throw new Error('no matching decryption secret');
+}
+
+// Module-level variable set before each jwtDecrypt call (avoids passing
+// through the resolver callback which has a fixed signature from jose).
+let cookieNameForResolver = '';
 
 /**
  * Decode the NextAuth v5 session cookie directly using `jose`.
@@ -76,14 +113,14 @@ export async function getMiddlewareSession(
   const cookie = request.cookies.get(cookieName)!.value;
 
   try {
-    // Derive the encryption key using HKDF (same as @auth/core)
-    const encryptionSecret = await getDerivedEncryptionKey('A256CBC-HS512', cookieName);
+    // Set the cookie name for the key resolver to use
+    cookieNameForResolver = cookieName;
 
-    // Decrypt + verify the JWE in one step (jose's jwtDecrypt handles both)
-    const { payload } = await jwtDecrypt(cookie, encryptionSecret, {
+    // Decrypt + verify the JWE using a key resolver (same as @auth/core)
+    const { payload } = await jwtDecrypt(cookie, keyResolver, {
       clockTolerance: 15,
-      keyManagementAlgorithms: ['dir'],
-      contentEncryptionAlgorithms: ['A256CBC-HS512', 'A256GCM'],
+      keyManagementAlgorithms: [ALG],
+      contentEncryptionAlgorithms: [ENC, 'A256GCM'],
     });
 
     if (!payload.sub) return null;
